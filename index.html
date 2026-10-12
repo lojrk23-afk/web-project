@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="ko" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BOARD FINDER - 모노크롬 보드게임 탐색</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts: Noto Sans KR & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Noto Sans KR', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            gray: {
+              50: '#f9fafb',
+              100: '#f3f4f6',
+              200: '#e5e7eb',
+              300: '#d1d5db',
+              400: '#9ca3af',
+              500: '#6b7280',
+              600: '#4b5563',
+              700: '#374151',
+              800: '#1f2937',
+              900: '#111827',
+              950: '#030712',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    .animate-slide-up {
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.97); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes toastIn {
+      0% { opacity: 0; transform: translate(-50%, 16px); }
+      15% { opacity: 1; transform: translate(-50%, 0); }
+      85% { opacity: 1; transform: translate(-50%, 0); }
+      100% { opacity: 0; transform: translate(-50%, -10px); }
+    }
+    .animate-toast {
+      animation: toastIn 2.4s forwards;
+    }
+
+    .grayscale-pattern {
+      background-image: radial-gradient(circle, #374151 1px, transparent 1px);
+      background-size: 12px 12px;
+    }
+  </style>
+</head>
+<body class="bg-gray-200 dark:bg-gray-950 text-gray-900 dark:text-gray-100 font-sans antialiased min-h-screen flex justify-center items-start transition-colors duration-200">
+
+  <!-- Mobile Container Wrapper (Max 440px) -->
+  <div class="w-full max-w-md min-h-screen bg-white dark:bg-gray-900 shadow-2xl border-x border-gray-300 dark:border-gray-800 flex flex-col relative overflow-hidden pb-16">
+    
+    <!-- Header Top Bar -->
+    <header class="sticky top-0 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2.5 cursor-pointer" onclick="switchTab('home')">
+        <div class="w-8 h-8 bg-black dark:bg-white text-white dark:text-black rounded-lg flex items-center justify-center font-black shadow-md">
+          <i class="fa-solid fa-dice-d6 text-sm"></i>
+        </div>
+        <div>
+          <h1 class="font-black text-sm tracking-tight text-gray-900 dark:text-white leading-none">BOARD FINDER</h1>
+          <p class="text-[9px] text-gray-500 dark:text-gray-400 font-mono font-bold tracking-widest mt-0.5">MONOCHROME MVP</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-1.5">
+        <button onclick="toggleDarkMode()" class="p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors text-xs" title="테마 변경">
+          <i id="theme-icon" class="fa-solid fa-moon text-sm"></i>
+        </button>
+        <button onclick="openBottomSheet()" class="p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center text-xs font-bold gap-1">
+          <i class="fa-solid fa-sliders text-xs"></i>
+          <span class="text-[11px]">필터</span>
+        </button>
+        <button onclick="switchTab('bookmarks')" class="relative p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+          <i class="fa-solid fa-bookmark text-sm"></i>
+          <span id="badge-bookmark-count" class="absolute top-1 right-1 bg-black dark:bg-white text-white dark:text-black text-[9px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">0</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN VIEW AREA -->
+    <main class="flex-1 flex flex-col">
+      
+      <!-- PAGE: HOME & EXPLORE -->
+      <section id="page-home" class="p-4 space-y-4 flex-1">
+        
+        <!-- Search & Hero Banner (Monochrome Monochrome Hero) -->
+        <div class="bg-gray-900 dark:bg-black text-white rounded-2xl p-4 shadow-lg border border-gray-800 space-y-3 relative overflow-hidden">
+          <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-gray-800/40 rounded-full blur-xl pointer-events-none"></div>
+          
+          <div class="flex items-center justify-between">
+            <span class="bg-gray-800 dark:bg-gray-800 text-gray-200 dark:text-gray-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-gray-700">MONO SPEC v1.3</span>
+            <span class="text-[11px] text-gray-400 font-mono">총 8개 게임</span>
+          </div>
+
+          <h2 class="text-base font-black leading-tight tracking-tight">
+            취향과 인원에 꼭 맞는<br>보드게임을 탐색하세요
+          </h2>
+          
+          <!-- Search Bar -->
+          <div class="relative flex items-center">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 text-gray-400 text-xs"></i>
+            <input type="text" id="input-search-query" oninput="handleSearchInput()" placeholder="게임명, 태그(#전략, #파티) 검색..." 
+                   class="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-xs rounded-xl pl-9 pr-8 py-2.5 outline-none border border-gray-300 dark:border-gray-700 focus:border-black dark:focus:border-white font-medium transition-colors">
+            <button onclick="clearSearch()" id="btn-clear-search" class="hidden absolute right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1">
+              <i class="fa-solid fa-circle-xmark text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Filter Chips -->
+        <div class="space-y-1.5">
+          <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 px-0.5 flex items-center justify-between">
+            <span>빠른 카테고리</span>
+            <button onclick="resetFilters()" class="text-gray-900 dark:text-gray-100 hover:underline text-[10px] font-bold">초기화</button>
+          </div>
+          <div class="flex space-x-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs font-semibold">
+            <button onclick="setQuickCategory('all')" id="chip-cat-all" class="chip-btn bg-black dark:bg-white text-white dark:text-black px-3 py-1.5 rounded-xl border border-transparent whitespace-nowrap shadow-sm">전체</button>
+            <button onclick="setQuickCategory('2')" id="chip-cat-2" class="chip-btn bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-xl whitespace-nowrap">👥 2인전용</button>
+            <button onclick="setQuickCategory('3-4')" id="chip-cat-3-4" class="chip-btn bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-xl whitespace-nowrap">👨‍👩‍👧 3~4인추천</button>
+            <button onclick="setQuickCategory('5+')" id="chip-cat-5+" class="chip-btn bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-xl whitespace-nowrap">🎉 파티(5인+)</button>
+            <button onclick="setQuickCategory('30')" id="chip-cat-30" class="chip-btn bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-xl whitespace-nowrap">⏱️ 30분컷</button>
+            <button onclick="setQuickCategory('입문')" id="chip-cat-입문" class="chip-btn bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-xl whitespace-nowrap">🌱 쉬운 입문</button>
+          </div>
+        </div>
+
+        <!-- Result Bar -->
+        <div class="flex items-center justify-between text-xs pt-1 border-t border-gray-200 dark:border-gray-800">
+          <div class="flex items-center space-x-1.5 font-black text-gray-900 dark:text-white">
+            <span>보드게임 리스트</span>
+            <span id="text-result-count" class="text-gray-500 dark:text-gray-400 font-mono text-[11px]">(0)</span>
+          </div>
+          <div class="flex items-center space-x-1 text-gray-500 dark:text-gray-400 text-[11px]">
+            <i class="fa-solid fa-arrow-down-wide-narrow"></i>
+            <span>평점순</span>
+          </div>
+        </div>
+
+        <!-- Game Cards List Container -->
+        <div id="container-game-cards" class="space-y-3">
+          <!-- Dynamically Injected Cards -->
+        </div>
+
+      </section>
+
+      <!-- PAGE: BOOKMARKS -->
+      <section id="page-bookmarks" class="p-4 space-y-4 flex-1 hidden">
+        <div class="border-b border-gray-200 dark:border-gray-800 pb-3">
+          <h2 class="text-base font-black text-gray-900 dark:text-white flex items-center gap-2">
+            <i class="fa-solid fa-bookmark text-gray-800 dark:text-gray-200"></i> 내 저장 목록
+          </h2>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">즐겨찾기해 둔 게임을 한눈에 확인하세요.</p>
+        </div>
+
+        <div id="container-bookmark-list" class="space-y-3">
+          <!-- Injected via JS -->
+        </div>
+      </section>
+
+      <!-- PAGE: MY PAGE -->
+      <section id="page-mypage" class="p-4 space-y-4 flex-1 hidden">
+        <div class="bg-gray-900 dark:bg-black text-white rounded-2xl p-4 shadow-md border border-gray-800 flex items-center space-x-3">
+          <div class="w-12 h-12 bg-gray-800 text-white font-black text-lg rounded-full flex items-center justify-center border border-gray-700">
+            G
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm">보드게이머 유저</h3>
+            <p class="text-[11px] text-gray-400 font-mono">MVP BETA USER</p>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-3 space-y-2 text-xs">
+          <div class="font-bold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-800 pb-2">📊 나의 활동 요약</div>
+          <div class="grid grid-cols-2 gap-2 text-center pt-1">
+            <div class="bg-white dark:bg-gray-800 p-2.5 rounded-xl border border-gray-200 dark:border-gray-700">
+              <div class="text-gray-500 dark:text-gray-400 text-[10px] font-bold">저장한 게임</div>
+              <div id="mypage-bookmark-count" class="text-base font-black text-gray-900 dark:text-white">0개</div>
+            </div>
+            <div class="bg-white dark:bg-gray-800 p-2.5 rounded-xl border border-gray-200 dark:border-gray-700">
+              <div class="text-gray-500 dark:text-gray-400 text-[10px] font-bold">최근 조회</div>
+              <div id="mypage-recent-count" class="text-base font-black text-gray-900 dark:text-white">0개</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden text-xs divide-y divide-gray-100 dark:divide-gray-800">
+          <button onclick="showToast('알림 기능이 준비 중입니다.')" class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+            <span class="font-medium text-gray-800 dark:text-gray-200"><i class="fa-regular fa-bell mr-2 text-gray-400"></i> 모임 알림 설정</span>
+            <i class="fa-solid fa-chevron-right text-gray-300 dark:text-gray-600"></i>
+          </button>
+          <button onclick="showToast('다운로드 내역이 없습니다.')" class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+            <span class="font-medium text-gray-800 dark:text-gray-200"><i class="fa-regular fa-file-pdf mr-2 text-gray-400"></i> 저장한 룰북 관리</span>
+            <i class="fa-solid fa-chevron-right text-gray-300 dark:text-gray-600"></i>
+          </button>
+          <button onclick="showToast('현재 모노크롬 MVP v1.3 버전입니다.')" class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+            <span class="font-medium text-gray-800 dark:text-gray-200"><i class="fa-solid fa-circle-info mr-2 text-gray-400"></i> 시스템 버전 정보</span>
+            <span class="text-[10px] font-mono text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-0.5 rounded">v1.3.0</span>
+          </button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- BOTTOM SHEET FILTER MODAL -->
+    <div id="modal-bottom-sheet" class="fixed inset-0 bg-black/70 z-50 hidden flex items-end justify-center transition-opacity">
+      <div class="w-full max-w-md bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 rounded-t-3xl p-5 space-y-4 animate-slide-up shadow-2xl">
+        <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-sliders text-gray-900 dark:text-white text-sm"></i>
+            <h3 class="font-extrabold text-sm text-gray-900 dark:text-white">상세 조건 탐색</h3>
+          </div>
+          <button onclick="closeBottomSheet()" class="w-7 h-7 bg-gray-100 dark:bg-gray-800 text-gray-500 rounded-full flex items-center justify-center font-bold text-xs">✕</button>
+        </div>
+
+        <div class="space-y-3.5 text-xs">
+          <!-- Filter: Players -->
+          <div>
+            <label class="block font-bold text-gray-700 dark:text-gray-300 mb-1.5">👥 플레이 인원수</label>
+            <div class="grid grid-cols-4 gap-1.5 font-medium">
+              <button onclick="setFilterOption('player', 'all')" id="f-player-all" class="f-p-btn p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-center">전체</button>
+              <button onclick="setFilterOption('player', '2')" id="f-player-2" class="f-p-btn p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-center">2인 전용</button>
+              <button onclick="setFilterOption('player', '3-4')" id="f-player-3-4" class="f-p-btn p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-center">3~4인</button>
+              <button onclick="setFilterOption('player', '5+')" id="f-player-5+" class="f-p-btn p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-center">5인 이상</button>
+            </div>
+          </div>
+
+          <!-- Filter: Time -->
+          <div>
+            <label class="block font-bold text-gray-700 dark:text-gray-300 mb-1.5">⏱️ 소요시간</label>
+            <div class="grid grid-cols-3 gap-1.5 font-medium">
+              <button onclick="setFilterOption('time', 'all')" id="f-time-all" class="f-t-btn p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-center">전체 시간</button>
+              <button onclick="setFilterOption('time', '30')" id="f-time-30" class="f-t-btn p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-center">30분 이하</button>
+              <button onclick="setFilterOption('time', '60')" id="f-time-60" class="f-t-btn p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-center">30~60분</button>
+            </div>
+          </div>
+
+          <!-- Filter: Difficulty -->
+          <div>
+            <label class="block font-bold text-gray-700 dark:text-gray-300 mb-1.5">📊 체감 난이도</label>
+            <div class="grid grid-cols-4 gap-1.5 font-medium">
+              <button onclick="setFilterOption('diff', 'all')" id="f-diff-all" class="f-d-btn p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-center">전체</button>
+              <button onclick="setFilterOption('diff', '하')" id="f-diff-하" class="f-d-btn p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-center">쉬움 (하)</button>
+              <button onclick="setFilterOption('diff', '중')" id="f-diff-중" class="f-d-btn p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-center">보통 (중)</button>
+              <button onclick="setFilterOption('diff', '상')" id="f-diff-상" class="f-d-btn p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-center">숙련 (상)</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-2 flex space-x-2">
+          <button onclick="resetFilters()" class="w-1/3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-3 rounded-xl font-bold text-xs">초기화</button>
+          <button onclick="closeBottomSheet()" class="w-2/3 bg-black dark:bg-white text-white dark:text-black py-3 rounded-xl font-bold text-xs shadow-md">조건 적용하기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GAME DETAIL MODAL -->
+    <div id="modal-game-detail" class="fixed inset-0 bg-black/70 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in shadow-2xl border border-gray-200 dark:border-gray-800">
+        
+        <!-- Header Visual Card -->
+        <div class="relative h-40 bg-gray-900 dark:bg-black p-4 flex flex-col justify-between text-white flex-shrink-0 border-b border-gray-800">
+          <button onclick="closeDetailModal()" class="absolute top-3 right-3 w-8 h-8 bg-gray-800/80 hover:bg-gray-700 text-white rounded-full flex items-center justify-center text-xs font-bold transition-all">✕</button>
+          
+          <div class="flex items-center space-x-2">
+            <span id="detail-badge-difficulty" class="bg-gray-800 border border-gray-700 text-gray-200 text-[10px] font-bold px-2 py-0.5 rounded">난이도: 상</span>
+            <span id="detail-release-year" class="bg-gray-800 border border-gray-700 text-gray-300 text-[10px] font-mono px-2 py-0.5 rounded">2016년</span>
+          </div>
+
+          <div>
+            <h2 id="detail-title" class="text-xl font-black text-white tracking-tight">테라포밍 마스</h2>
+            <p id="detail-eng-title" class="text-xs text-gray-400 font-mono">Terraforming Mars</p>
+          </div>
+        </div>
+
+        <!-- Detail Scrollable Body -->
+        <div class="p-4 overflow-y-auto space-y-4 text-xs flex-1">
+          
+          <!-- Key Specs Grid -->
+          <div class="grid grid-cols-3 gap-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-800 rounded-2xl p-3 text-center">
+            <div>
+              <div class="text-gray-500 dark:text-gray-400 text-[10px]">권장 인원</div>
+              <div id="detail-players" class="font-black text-gray-900 dark:text-white text-xs mt-0.5">1~5명</div>
+            </div>
+            <div class="border-x border-gray-200 dark:border-gray-700">
+              <div class="text-gray-500 dark:text-gray-400 text-[10px]">소요 시간</div>
+              <div id="detail-time" class="font-black text-gray-900 dark:text-white text-xs mt-0.5">120분</div>
+            </div>
+            <div>
+              <div class="text-gray-500 dark:text-gray-400 text-[10px]">유저 평점</div>
+              <div id="detail-rating" class="font-black text-gray-900 dark:text-white text-xs mt-0.5">★ 4.8</div>
+            </div>
+          </div>
+
+          <!-- Tags -->
+          <div id="detail-tags" class="flex flex-wrap gap-1.5">
+            <!-- Tags Injected -->
+          </div>
+
+          <!-- Summary -->
+          <div class="space-y-1">
+            <h4 class="font-black text-gray-900 dark:text-white text-xs">게임 핵심 요약</h4>
+            <p id="detail-summary" class="text-gray-600 dark:text-gray-300 leading-relaxed bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-200 dark:border-gray-800">
+              요약 설명
+            </p>
+          </div>
+
+          <!-- Quick Action Links -->
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button onclick="handleActionRulebook()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 py-2.5 px-3 rounded-xl font-bold flex items-center justify-center space-x-1.5 transition-colors">
+              <i class="fa-solid fa-file-pdf text-xs"></i>
+              <span>공식 룰북 (PDF)</span>
+            </button>
+            <button onclick="handleActionVideo()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 py-2.5 px-3 rounded-xl font-bold flex items-center justify-center space-x-1.5 transition-colors">
+              <i class="fa-solid fa-circle-play text-xs"></i>
+              <span>3분 룰 영상</span>
+            </button>
+          </div>
+
+          <!-- User Notes Section -->
+          <div class="space-y-1.5 pt-1">
+            <label class="block font-black text-gray-900 dark:text-white text-xs">📝 개인 메모 (저장용)</label>
+            <textarea id="detail-user-note" oninput="saveCurrentNote()" rows="2" placeholder="전략 팁이나 모임 기억을 기록하세요..." class="w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl p-2 text-xs outline-none focus:border-black dark:focus:border-white resize-none"></textarea>
+          </div>
+
+        </div>
+
+        <!-- Detail Footer -->
+        <div class="p-3 bg-gray-50 dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
+          <button id="btn-modal-bookmark-toggle" onclick="toggleBookmarkFromModal()" class="w-full bg-black dark:bg-white text-white dark:text-black font-extrabold py-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md">
+            <i class="fa-solid fa-bookmark"></i>
+            <span id="text-modal-bookmark">즐겨찾기에 저장</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- BOTTOM FIXED NAVIGATION -->
+    <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 grid grid-cols-3 text-center text-[10px] font-bold text-gray-400 dark:text-gray-500 z-40 py-2 shadow-lg">
+      <button onclick="switchTab('home')" id="nav-tab-home" class="nav-btn text-gray-900 dark:text-white flex flex-col items-center justify-center space-y-1">
+        <i class="fa-solid fa-house text-sm"></i>
+        <span>탐색·홈</span>
+      </button>
+      <button onclick="switchTab('bookmarks')" id="nav-tab-bookmarks" class="nav-btn flex flex-col items-center justify-center space-y-1">
+        <i class="fa-solid fa-bookmark text-sm"></i>
+        <span>내 저장목록</span>
+      </button>
+      <button onclick="switchTab('mypage')" id="nav-tab-mypage" class="nav-btn flex flex-col items-center justify-center space-y-1">
+        <i class="fa-solid fa-user text-sm"></i>
+        <span>마이페이지</span>
+      </button>
+    </nav>
+
+    <!-- Toast Notification Overlay -->
+    <div id="toast-container" class="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none"></div>
+
+  </div>
+
+  <script>
+    const gamesData = [
+      {
+        id: 'tfm',
+        title: '테라포밍 마스',
+        engTitle: 'Terraforming Mars',
+        players: '1~5명',
+        playerCategory: '3-4',
+        time: '120분',
+        timeCategory: '60',
+        difficulty: '상',
+        releaseYear: '2016',
+        rating: 4.8,
+        reviewsCount: 342,
+        tags: ['#전략', '#SF', '#엔진빌딩', '#TOP'],
+        summary: '화성을 인류가 살 수 있는 환경으로 테라포밍하는 대표 전략 보드게임. 기업의 CEO가 되어 자원을 축적하고 온도, 산소, 해수면을 높이세요.'
+      },
+      {
+        id: 'catan',
+        title: '카탄 (Catan)',
+        engTitle: 'Catan',
+        players: '3~4명',
+        playerCategory: '3-4',
+        time: '75분',
+        timeCategory: '60',
+        difficulty: '중',
+        releaseYear: '1995',
+        rating: 4.6,
+        reviewsCount: 512,
+        tags: ['#협상', '#건설', '#주사위', '#클래식'],
+        summary: '미지의 섬 카탄을 개척하며 도로와 마을을 건설하는 입문 필수 전략 보드게임. 자원 거래와 위치 선점이 승리의 핵심입니다.'
+      },
+      {
+        id: 'splendor',
+        title: '스플렌더',
+        engTitle: 'Splendor',
+        players: '2~4명',
+        playerCategory: '2',
+        time: '30분',
+        timeCategory: '30',
+        difficulty: '하',
+        releaseYear: '2014',
+        rating: 4.7,
+        reviewsCount: 620,
+        tags: ['#보석', '#엔진빌딩', '#2인추천', '#입문'],
+        summary: '르네상스 보석 상인이 되어 토큰을 수집하고 카드를 구입해 영주들의 방문을 이끌어내는 스피디한 입문형 보드게임.'
+      },
+      {
+        id: 'rummikub',
+        title: '루미큐브',
+        engTitle: 'Rummikub',
+        players: '2~4명',
+        playerCategory: '2',
+        time: '40분',
+        timeCategory: '60',
+        difficulty: '하',
+        releaseYear: '1977',
+        rating: 4.5,
+        reviewsCount: 890,
+        tags: ['#타일', '#숫자조합', '#가족게임', '#스테디'],
+        summary: '연속되거나 동일한 숫자의 타일 세트를 구성하여 손의 타일을 가장 먼저 털어내는 추상 숫자 전략 게임.'
+      },
+      {
+        id: 'bang',
+        title: '뱅! (BANG!)',
+        engTitle: 'BANG!',
+        players: '4~7명',
+        playerCategory: '5+',
+        time: '45분',
+        timeCategory: '60',
+        difficulty: '중',
+        releaseYear: '2002',
+        rating: 4.3,
+        reviewsCount: 410,
+        tags: ['#마피아', '#서부시대', '#파티', '#심리전'],
+        summary: '서부 시대를 배경으로 보안관, 무법자, 배신자가 정체를 숨긴 채 벌이는 대표적인 총싸움 마피아 파티 게임.'
+      },
+      {
+        id: 'avalon',
+        title: '아발론 (Avalon)',
+        engTitle: 'The Resistance: Avalon',
+        players: '5~10명',
+        playerCategory: '5+',
+        time: '30분',
+        timeCategory: '30',
+        difficulty: '중',
+        releaseYear: '2012',
+        rating: 4.8,
+        reviewsCount: 530,
+        tags: ['#블러핑', '#마피아', '#단체추천', '#심리전'],
+        summary: '원탁의 기사와 모드레드의 악한 세력이 정체를 숨기고 원탁 임무 성공 여부를 겨루는 정통 심리 블러핑 게임.'
+      },
+      {
+        id: '7wonders',
+        title: '세븐원더스 대결',
+        engTitle: '7 Wonders Duel',
+        players: '2인 전용',
+        playerCategory: '2',
+        time: '30분',
+        timeCategory: '30',
+        difficulty: '중',
+        releaseYear: '2015',
+        rating: 4.9,
+        reviewsCount: 290,
+        tags: ['#2인전용', '#문명', '#드래프팅', '#명작'],
+        summary: '2인 보드게임의 명작! 3개 시대에 걸쳐 문명을 발전시키고 군사, 과학, 문화 승리를 노리는 드래프팅 대결 게임.'
+      },
+      {
+        id: 'halli',
+        title: '할리갈리',
+        engTitle: 'Halli Galli',
+        players: '2~6명',
+        playerCategory: '5+',
+        time: '15분',
+        timeCategory: '30',
+        difficulty: '하',
+        releaseYear: '1990',
+        rating: 4.2,
+        reviewsCount: 710,
+        tags: ['#순발력', '#과일', '#종치기', '#아이스브레이킹'],
+        summary: '같은 과일 5개가 모이는 순간 가장 먼저 종을 쳐라! 남녀노소 누구나 즉시 즐길 수 있는 순발력 보드게임.'
+      }
+    ];
+
+    let activeTab = 'home';
+    let filterState = { player: 'all', time: 'all', diff: 'all', query: '' };
+    let bookmarks = new Set(['tfm', 'splendor']);
+    let recentViewed = new Set(['tfm']);
+    let userNotes = {};
+    let selectedGameId = null;
+    let isDarkMode = false;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderGameCards();
+      updateBookmarkBadges();
+      syncFilterUI();
+    });
+
+    function renderGameCards() {
+      const container = document.getElementById('container-game-cards');
+      const filtered = getFilteredGames();
+      
+      document.getElementById('text-result-count').innerText = `(${filtered.length})`;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="py-12 text-center text-gray-400 bg-gray-50 dark:bg-gray-800/40 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-800 space-y-2">
+            <i class="fa-solid fa-ban text-2xl text-gray-300 dark:text-gray-600"></i>
+            <p class="font-bold text-xs text-gray-600 dark:text-gray-400">조건에 검색된 보드게임이 없습니다.</p>
+            <button onclick="resetFilters()" class="text-xs bg-black dark:bg-white text-white dark:text-black font-bold px-3 py-1.5 rounded-lg shadow-sm">필터 초기화</button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(game => {
+        const isSaved = bookmarks.has(game.id);
+        
+        return `
+          <div onclick="openDetailModal('${game.id}')" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-3.5 shadow-sm hover:border-gray-400 dark:hover:border-gray-600 transition-all active:scale-[0.99] cursor-pointer flex space-x-3 items-center relative">
+            
+            <!-- Grayscale Thumbnail Box -->
+            <div class="w-16 h-16 bg-gray-900 dark:bg-black text-white rounded-xl flex-shrink-0 flex flex-col justify-between p-2 shadow-inner border border-gray-800">
+              <span class="text-[9px] font-mono font-bold bg-gray-800 dark:bg-gray-800 px-1 rounded w-max text-gray-200">★ ${game.rating}</span>
+              <i class="fa-solid fa-dice-d6 text-xl self-center text-gray-300"></i>
+              <span class="text-[8px] font-mono text-gray-400 text-center">${game.releaseYear}</span>
+            </div>
+
+            <!-- Game Info -->
+            <div class="flex-1 min-w-0 space-y-1">
+              <div class="flex justify-between items-start pr-6">
+                <h3 class="font-extrabold text-xs text-gray-900 dark:text-white truncate leading-snug">${game.title}</h3>
+              </div>
+
+              <div class="flex items-center text-[10px] text-gray-500 dark:text-gray-400 font-medium space-x-2">
+                <span>👥 ${game.players}</span>
+                <span>• ⏱️ ${game.time}</span>
+                <span class="text-gray-800 dark:text-gray-200 font-bold">• 📊 ${game.difficulty}</span>
+              </div>
+
+              <!-- Monotone Tags -->
+              <div class="flex flex-wrap gap-1 pt-0.5">
+                ${game.tags.slice(0, 3).map(t => `<span class="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-[9px] font-semibold px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700">${t}</span>`).join('')}
+              </div>
+            </div>
+
+            <!-- Bookmark Button -->
+            <button onclick="toggleBookmark(event, '${game.id}')" class="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+              <i class="${isSaved ? 'fa-solid fa-bookmark text-gray-900 dark:text-white text-base' : 'fa-regular fa-bookmark text-base'}"></i>
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getFilteredGames() {
+      return gamesData.filter(game => {
+        const matchesQuery = filterState.query === '' || 
+          game.title.toLowerCase().includes(filterState.query.toLowerCase()) ||
+          game.tags.some(t => t.toLowerCase().includes(filterState.query.toLowerCase()));
+        
+        const matchesPlayer = filterState.player === 'all' || game.playerCategory === filterState.player;
+        const matchesTime = filterState.time === 'all' || game.timeCategory === filterState.time;
+        const matchesDiff = filterState.diff === 'all' || game.difficulty === filterState.diff;
+
+        return matchesQuery && matchesPlayer && matchesTime && matchesDiff;
+      });
+    }
+
+    function handleSearchInput() {
+      const q = document.getElementById('input-search-query').value;
+      filterState.query = q.trim();
+      
+      const btnClear = document.getElementById('btn-clear-search');
+      if (q.length > 0) btnClear.classList.remove('hidden');
+      else btnClear.classList.add('hidden');
+
+      renderGameCards();
+    }
+
+    function clearSearch() {
+      document.getElementById('input-search-query').value = '';
+      filterState.query = '';
+      document.getElementById('btn-clear-search').classList.add('hidden');
+      renderGameCards();
+    }
+
+    function setQuickCategory(cat) {
+      document.querySelectorAll('.chip-btn').forEach(btn => {
+        btn.className = 'chip-btn bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-xl whitespace-nowrap';
+      });
+
+      const activeBtn = document.getElementById(`chip-cat-${cat}`);
+      if (activeBtn) {
+        activeBtn.className = 'chip-btn bg-black dark:bg-white text-white dark:text-black px-3 py-1.5 rounded-xl border border-transparent whitespace-nowrap shadow-sm';
+      }
+
+      if (cat === 'all') {
+        filterState.player = 'all';
+        filterState.time = 'all';
+        filterState.diff = 'all';
+      } else if (cat === '2' || cat === '3-4' || cat === '5+') {
+        filterState.player = cat;
+      } else if (cat === '30') {
+        filterState.time = '30';
+      } else if (cat === '입문') {
+        filterState.diff = '하';
+      }
+
+      syncFilterUI();
+      renderGameCards();
+    }
+
+    function setFilterOption(type, val) {
+      filterState[type] = val;
+      syncFilterUI();
+      renderGameCards();
+    }
+
+    function syncFilterUI() {
+      ['player', 'time', 'diff'].forEach(type => {
+        document.querySelectorAll(`.f-${type[0]}-btn`).forEach(btn => {
+          btn.classList.remove('bg-black', 'dark:bg-white', 'text-white', 'dark:text-black', 'border-black');
+          btn.classList.add('border-gray-200', 'dark:border-gray-700', 'text-gray-700', 'dark:text-gray-300');
+        });
+
+        const activeBtn = document.getElementById(`f-${type}-${filterState[type]}`);
+        if (activeBtn) {
+          activeBtn.classList.remove('border-gray-200', 'dark:border-gray-700', 'text-gray-700', 'dark:text-gray-300');
+          activeBtn.classList.add('bg-black', 'dark:bg-white', 'text-white', 'dark:text-black', 'border-black');
+        }
+      });
+    }
+
+    function resetFilters() {
+      filterState = { player: 'all', time: 'all', diff: 'all', query: '' };
+      document.getElementById('input-search-query').value = '';
+      document.getElementById('btn-clear-search').classList.add('hidden');
+      setQuickCategory('all');
+      showToast('검색 조건이 초기화되었습니다.');
+    }
+
+    function openBottomSheet() {
+      syncFilterUI();
+      document.getElementById('modal-bottom-sheet').classList.remove('hidden');
+    }
+
+    function closeBottomSheet() {
+      document.getElementById('modal-bottom-sheet').classList.add('hidden');
+    }
+
+    function openDetailModal(id) {
+      selectedGameId = id;
+      recentViewed.add(id);
+      const game = gamesData.find(g => g.id === id);
+      if (!game) return;
+
+      document.getElementById('detail-title').innerText = game.title;
+      document.getElementById('detail-eng-title').innerText = game.engTitle;
+      document.getElementById('detail-players').innerText = game.players;
+      document.getElementById('detail-time').innerText = game.time;
+      document.getElementById('detail-rating').innerText = `★ ${game.rating}`;
+      document.getElementById('detail-badge-difficulty').innerText = `난이도: ${game.difficulty}`;
+      document.getElementById('detail-release-year').innerText = `${game.releaseYear}년`;
+      document.getElementById('detail-summary').innerText = game.summary;
+
+      document.getElementById('detail-tags').innerHTML = game.tags.map(t => 
+        `<span class="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-[10px] font-bold px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700">${t}</span>`
+      ).join('');
+
+      document.getElementById('detail-user-note').value = userNotes[id] || '';
+
+      updateModalBookmarkButton();
+      document.getElementById('modal-game-detail').classList.remove('hidden');
+    }
+
+    function closeDetailModal() {
+      document.getElementById('modal-game-detail').classList.add('hidden');
+      selectedGameId = null;
+    }
+
+    function saveCurrentNote() {
+      if (!selectedGameId) return;
+      const note = document.getElementById('detail-user-note').value;
+      userNotes[selectedGameId] = note;
+    }
+
+    function updateModalBookmarkButton() {
+      if (!selectedGameId) return;
+      const isSaved = bookmarks.has(selectedGameId);
+      const textSpan = document.getElementById('text-modal-bookmark');
+      const btn = document.getElementById('btn-modal-bookmark-toggle');
+
+      if (isSaved) {
+        textSpan.innerText = '저장됨 (즐겨찾기 해제)';
+        btn.className = 'w-full bg-gray-700 dark:bg-gray-700 text-white font-extrabold py-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md';
+      } else {
+        textSpan.innerText = '즐겨찾기에 저장';
+        btn.className = 'w-full bg-black dark:bg-white text-white dark:text-black font-extrabold py-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md';
+      }
+    }
+
+    function toggleBookmark(e, id) {
+      if (e) e.stopPropagation();
+      if (bookmarks.has(id)) {
+        bookmarks.delete(id);
+        showToast('저장 목록에서 삭제되었습니다.');
+      } else {
+        bookmarks.add(id);
+        showToast('저장 목록에 추가되었습니다.');
+      }
+      updateBookmarkBadges();
+      renderGameCards();
+      if (activeTab === 'bookmarks') renderBookmarksPage();
+    }
+
+    function toggleBookmarkFromModal() {
+      if (selectedGameId) {
+        toggleBookmark(null, selectedGameId);
+        updateModalBookmarkButton();
+      }
+    }
+
+    function updateBookmarkBadges() {
+      const count = bookmarks.size;
+      document.getElementById('badge-bookmark-count').innerText = count;
+      document.getElementById('mypage-bookmark-count').innerText = `${count}개`;
+      document.getElementById('mypage-recent-count').innerText = `${recentViewed.size}개`;
+    }
+
+    function renderBookmarksPage() {
+      const container = document.getElementById('container-bookmark-list');
+      const savedGames = gamesData.filter(g => bookmarks.has(g.id));
+
+      if (savedGames.length === 0) {
+        container.innerHTML = `
+          <div class="py-12 text-center text-gray-400 bg-gray-50 dark:bg-gray-800/40 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-800 space-y-2">
+            <i class="fa-regular fa-bookmark text-2xl text-gray-300 dark:text-gray-600"></i>
+            <p class="font-bold text-xs text-gray-600 dark:text-gray-400">저장된 보드게임이 없습니다.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = savedGames.map(game => `
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-3 flex justify-between items-center shadow-sm">
+          <div class="flex items-center space-x-3 cursor-pointer flex-1" onclick="openDetailModal('${game.id}')">
+            <div class="w-10 h-10 bg-gray-900 text-white rounded-xl flex items-center justify-center font-bold text-sm shadow-inner">
+              🎲
+            </div>
+            <div>
+              <h4 class="font-bold text-xs text-gray-900 dark:text-white">${game.title}</h4>
+              <p class="text-[10px] text-gray-500 dark:text-gray-400 font-mono">${game.players} • ${game.time}</p>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="openDetailModal('${game.id}')" class="bg-black dark:bg-white text-white dark:text-black text-[10px] font-bold px-2.5 py-1.5 rounded-lg shadow-sm">
+              상세보기
+            </button>
+            <button onclick="toggleBookmark(event, '${game.id}')" class="text-gray-400 hover:text-black dark:hover:text-white p-1 font-bold text-xs">
+              삭제
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function switchTab(tab) {
+      activeTab = tab;
+
+      document.getElementById('page-home').classList.add('hidden');
+      document.getElementById('page-bookmarks').classList.add('hidden');
+      document.getElementById('page-mypage').classList.add('hidden');
+
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('text-gray-900', 'dark:text-white');
+        btn.classList.add('text-gray-400', 'dark:text-gray-500');
+      });
+
+      document.getElementById(`page-${tab}`).classList.remove('hidden');
+      const activeNavBtn = document.getElementById(`nav-tab-${tab}`);
+      if (activeNavBtn) {
+        activeNavBtn.classList.remove('text-gray-400', 'dark:text-gray-500');
+        activeNavBtn.classList.add('text-gray-900', 'dark:text-white');
+      }
+
+      if (tab === 'bookmarks') renderBookmarksPage();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function toggleDarkMode() {
+      isDarkMode = !isDarkMode;
+      const html = document.documentElement;
+      const themeIcon = document.getElementById('theme-icon');
+
+      if (isDarkMode) {
+        html.classList.add('dark');
+        themeIcon.className = 'fa-solid fa-sun text-sm';
+        showToast('다크 모드로 전환되었습니다.');
+      } else {
+        html.classList.remove('dark');
+        themeIcon.className = 'fa-solid fa-moon text-sm';
+        showToast('라이트 모드로 전환되었습니다.');
+      }
+    }
+
+    function handleActionRulebook() {
+      showToast('공식 PDF 룰북 다운로드를 시작합니다.');
+    }
+
+    function handleActionVideo() {
+      showToast('3분 룰 요약 영상으로 이동합니다.');
+    }
+
+    function showToast(msg) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'bg-gray-900 dark:bg-white text-white dark:text-black text-xs font-bold px-4 py-2.5 rounded-full shadow-2xl animate-toast whitespace-nowrap mb-2 border border-gray-700 dark:border-gray-200';
+      toast.innerText = msg;
+      
+      container.appendChild(toast);
+      setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 2400);
+    }
+  </script>
+</body>
+</html>
